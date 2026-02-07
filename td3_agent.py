@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
 
-class TD3_agent():
+class TD3_trainer():
     def __init__(self, env):
         self.env = env
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,6 +46,7 @@ class TD3_agent():
         critic_params = list(self.critic_1.parameters()) + list(self.critic_2.parameters())
         self.critic_optimizer = torch.optim.Adam(critic_params, lr=self.config["lr_critic"])
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config["lr_actor"])
+       
 
     def select_random_action(self):
         return np.random.uniform(self.action_bounds[0],self.action_bounds[1], self.num_actions).tolist()
@@ -107,7 +108,6 @@ class TD3_agent():
             "critic_1_loss": critic_1_loss.item(),
             "critic_2_loss": critic_2_loss.item(),
         }
-
 
     def actor_target_update(self, state_batch):
 
@@ -178,12 +178,51 @@ class TD3_agent():
 
         return t
 
+
+
     # def load_trained_model(self):
     #     ckpt = torch.load("td3_actor.pt", map_location=self.device)
 
     #     self.actor.load_state_dict(ckpt["actor"])
     #     self.actor.to(self.device)
     #     self.actor.eval()
+
+class TD3_agent():
+    def __init__(self, env, ckpt_path):
+        self.env = env
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.num_actions = env.num_actions
+        self.observation_space = env.observation_space
+        self.observation_space_dim = env.observation_space.shape[0]
+        self.action_bounds = (env.action_space.low[0], env.action_space.high[0])
+        self.ckpt_path = ckpt_path
+
+        self.actor = Actor(self.num_actions ,self.observation_space_dim)
+        self.init_actor()
+        self.actor.eval()
+
+    def act(self, observation):
+
+        # check if state is numpy and transform to tensor
+        if not isinstance(observation, np.ndarray):
+            observation = np.array(observation, dtype=np.float32)
+        observation_t = torch.FloatTensor(observation).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            action_t = self.actor(observation_t)
+        action = action_t.cpu().numpy()[0]
+
+        # clip to env bounds
+        action = np.clip(action, self.action_bounds[0], self.action_bounds[1])
+
+        return action.astype(np.float32)
+    
+    def init_actor(self):
+      
+        ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint.pt", map_location=self.device)
+        self.actor.load_state_dict(ckpt["actor"])
+
+
 
 class Actor(nn.Module):
     def __init__(self, num_actions, observation_space, max_action=1):
@@ -198,6 +237,7 @@ class Actor(nn.Module):
             x = torch.relu(self.l1(x))
             x = torch.relu(self.l2(x))
             return self.max_action * torch.tanh(self.l3(x))
+    
 
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim):

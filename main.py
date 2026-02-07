@@ -1,4 +1,4 @@
-from td3_agent import TD3_agent
+from td3_trainer import TD3_trainer
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -13,10 +13,10 @@ import wandb
 env = h_env.HockeyEnv() 
 obs2 = env.obs_agent_two() # initiate two agents
 
-td3_agent = TD3_agent(env)
-batch_size = td3_agent.config["batch_size"]
+td3_trainer = TD3_trainer(env)
+batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
-device = td3_agent.device
+device = td3_trainer.device
 total_it = 0
 
 # import os
@@ -27,14 +27,14 @@ run = wandb.init(
     entity="bischoffd",
     name="td3_run_002",
     project="RL_TD3_hockey",
-    config=td3_agent.config,
+    config=td3_trainer.config,
 ) 
 
 # ----------
 # Train run
 # ----------
 
-for eps in range(td3_agent.max_episodes):
+for eps in range(td3_trainer.max_episodes):
     obs1, info = env.reset()
     obs2 = env.obs_agent_two()
     player2 = h_env.BasicOpponent(weak=True)
@@ -45,14 +45,14 @@ for eps in range(td3_agent.max_episodes):
     
     while not done:
         # ---- Buffer Step ----
-        if total_it < td3_agent.config["warm_up"]:
+        if total_it < td3_trainer.config["warm_up"]:
             # Warmup action
-            a1 = td3_agent.select_random_action()
+            a1 = td3_trainer.select_random_action()
         else:
             # Policy action
-            a1 = td3_agent.select_action_with_policy(obs1)
+            a1 = td3_trainer.select_action_with_policy(obs1)
 
-        if total_it == td3_agent.config["warm_up"]: # warmup finished logging
+        if total_it == td3_trainer.config["warm_up"]: # warmup finished logging
             run.log({"event/warmup_finished": 1}, step=total_it)
 
         a2 = player2.act(obs2)
@@ -64,12 +64,12 @@ for eps in range(td3_agent.max_episodes):
         total_it += 1
 
         # --- Add to Buffer ---
-        td3_agent.buffer.add(obs1, a1, r, obs1_new, done)
+        td3_trainer.buffer.add(obs1, a1, r, obs1_new, done)
 
         # ---- LEARNING PHASE ----
-        if total_it >= td3_agent.config["warm_up"] and td3_agent.buffer.size >= batch_size:
+        if total_it >= td3_trainer.config["warm_up"] and td3_trainer.buffer.size >= batch_size:
 
-            state, action, reward, next_state, done_b = td3_agent.buffer.sample(batch_size)
+            state, action, reward, next_state, done_b = td3_trainer.buffer.sample(batch_size)
 
             state_b = torch.FloatTensor(state).to(device)
             action_b = torch.FloatTensor(action).to(device)
@@ -78,19 +78,19 @@ for eps in range(td3_agent.max_episodes):
             done_b = torch.from_numpy(done_b.astype(np.float32))
             
             # ---- CRITIC UPDATE ----
-            critic_loss = td3_agent.critic_update(state_b, action_b, reward_b, next_state_b, done_b)
+            critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, done_b)
             run.log({"critic_loss": critic_loss["critic_loss"], "critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
 
             # ---- ACTOR UPDATE ----
             if eps % policy_delay == 0:
-                agent_loss = td3_agent.actor_target_update(state_b)
+                agent_loss = td3_trainer.actor_target_update(state_b)
                 run.log({"agent_loss":agent_loss}, step=total_it)
 
             # --- CHECKPOINTING per step ---
-            if eps > 0 and eps % td3_agent.config["checkpoint_interval"] == 0:
-                td3_agent.save_checkpoint(step=str(total_it))
+            if eps > 0 and eps % td3_trainer.config["checkpoint_interval"] == 0:
+                td3_trainer.save_checkpoint(step=str(total_it))
 
     run.log({"episode_return": episode_return}, step=total_it)
 
 
-td3_agent.save_checkpoint(step="last")
+td3_trainer.save_checkpoint(step="last")
