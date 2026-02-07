@@ -11,9 +11,13 @@ import wandb
 # ---------------
 
 env = h_env.HockeyEnv() 
+env.reset()  # Reset environment to initialize observation_space
 obs2 = env.obs_agent_two() # initiate two agents
+obs_dim = env.observation_space.shape[0]
+act_dim = env.num_actions
+act_bounds = (env.action_space.low[0], env.action_space.high[0])
 
-td3_trainer = TD3_trainer(env)
+td3_trainer = TD3_trainer(act_dim, obs_dim, act_bounds)
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
 device = td3_trainer.device
@@ -62,6 +66,7 @@ for eps in range(td3_trainer.max_episodes):
         done = terminated or truncated
         episode_return += r
         total_it += 1
+        obs2 = env.obs_agent_two()
 
         # --- Add to Buffer ---
         td3_trainer.buffer.add(obs1, a1, r, obs1_new, done)
@@ -75,14 +80,23 @@ for eps in range(td3_trainer.max_episodes):
             action_b = torch.FloatTensor(action).to(device)
             reward_b = torch.FloatTensor(reward).to(device)
             next_state_b = torch.FloatTensor(next_state).to(device)
-            done_b = torch.from_numpy(done_b.astype(np.float32))
-            
+            done_b = torch.from_numpy(done_b.astype(np.float32)).to(device)
+            done_b = torch.as_tensor(done_b, dtype=torch.float32, device=device)
+
+            assert state_b.shape == (batch_size, obs_dim)
+            assert action_b.shape == (batch_size, act_dim)
+            assert reward_b.shape == (batch_size, 1)
+            assert done_b.shape == (batch_size, 1)
+            assert state_b.device == device
+            assert td3_trainer.actor.l1.weight.device == device
+        
+
             # ---- CRITIC UPDATE ----
             critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, done_b)
             run.log({"critic_loss": critic_loss["critic_loss"], "critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
 
             # ---- ACTOR UPDATE ----
-            if eps % policy_delay == 0:
+            if total_it % policy_delay == 0:
                 agent_loss = td3_trainer.actor_target_update(state_b)
                 run.log({"agent_loss":agent_loss}, step=total_it)
 

@@ -5,18 +5,16 @@ import numpy as np
 import torch.nn.functional as F
 
 class TD3_trainer():
-    def __init__(self, env):
-        self.env = env
+    def __init__(self, obs_dim, act_dim, act_bounds):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.num_actions = env.num_actions
-        self.observation_space = env.observation_space
-        self.observation_space_dim = env.observation_space.shape[0]
+        self.action_dim = act_dim
+        self.observation_space_dim = obs_dim
         self.config = {
             "batch_size" : 100,
             "gamma" : 0.99,
             "tau" : 0.005,
             "policy_delay" : 2,
-            "warm_up" : 10.000,
+            "warm_up" : 10000,
             "max_episodes" : 100,
             "exploration_noise_s" : 0.1,
             "target_smoothing_noise_s" : 0.2,
@@ -27,18 +25,19 @@ class TD3_trainer():
             "checkpoint_interval": 100
         }
         self.max_episodes = self.config["max_episodes"]
-        self.action_bounds = (env.action_space.low[0], env.action_space.high[0])
+        self.action_bounds = act_bounds
         self.initiate_models()
-        self.buffer = ReplayBuffer(state_dim=self.observation_space_dim, action_dim=self.num_actions)
+        self.buffer = ReplayBuffer(state_dim=self.observation_space_dim, action_dim=self.action_dim)
 
     def initiate_models(self):
-        self.actor = Actor(self.num_actions, self.observation_space_dim, max_action=1)
-        self.critic_1 = Critic(self.num_actions, self.observation_space_dim)
-        self.critic_2 = Critic(self.num_actions, self.observation_space_dim)
+        self.actor = Actor(self.observation_space_dim, self.action_dim, max_action=1).to(self.device)
+        self.critic_1 = Critic(self.observation_space_dim, self.action_dim).to(self.device)
+        self.critic_2 = Critic(self.observation_space_dim, self.action_dim).to(self.device)
 
-        self.actor_target = Actor(self.num_actions, self.observation_space_dim, max_action=1)
-        self.critic_1_target = Critic(self.num_actions, self.observation_space_dim)
-        self.critic_2_target = Critic(self.num_actions, self.observation_space_dim)
+        self.actor_target = Actor(self.observation_space_dim, self.action_dim, max_action=1).to(self.device)
+        self.critic_1_target = Critic(self.observation_space_dim, self.action_dim).to(self.device)
+        self.critic_2_target = Critic(self.observation_space_dim, self.action_dim).to(self.device)
+
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.critic_1_target.load_state_dict(self.critic_1.state_dict())
         self.critic_2_target.load_state_dict(self.critic_2.state_dict())
@@ -49,7 +48,7 @@ class TD3_trainer():
        
 
     def select_random_action(self):
-        return np.random.uniform(self.action_bounds[0],self.action_bounds[1], self.num_actions).tolist()
+        return np.random.uniform(self.action_bounds[0],self.action_bounds[1], self.action_dim).tolist()
 
     def select_action_with_policy(self, state,  add_noise=True):
 
@@ -63,7 +62,7 @@ class TD3_trainer():
         action = action_t.cpu().numpy()[0]
 
         if add_noise:
-            noise = np.random.normal(0, self.config["exploration_noise_s"], size=self.num_actions)
+            noise = np.random.normal(0, self.config["exploration_noise_s"], size=self.action_dim)
             action = action + noise
 
         # clip to env bounds
@@ -219,18 +218,18 @@ class TD3_agent():
     
     def init_actor(self):
       
-        ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint.pt", map_location=self.device)
+        ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint_last.pt", map_location=self.device)
         self.actor.load_state_dict(ckpt["actor"])
 
 
 
 class Actor(nn.Module):
-    def __init__(self, num_actions, observation_space, max_action=1):
+    def __init__(self, observation_dim, action_dim, max_action=1):
 
         super().__init__()
-        self.l1 = nn.Linear(observation_space, 400)
+        self.l1 = nn.Linear(observation_dim, 400)
         self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, num_actions)
+        self.l3 = nn.Linear(300, action_dim)
         self.max_action = max_action
 
     def forward(self, x):
@@ -240,9 +239,9 @@ class Actor(nn.Module):
     
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, observation_dim, action_dim):
         super(Critic, self).__init__()
-        self.l1 = nn.Linear(state_dim + action_dim, 400)
+        self.l1 = nn.Linear(observation_dim + action_dim, 400)
         self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, 1)    
         
@@ -268,7 +267,7 @@ class ReplayBuffer:
         self.actions[self.ptr] = action
         self.next_states[self.ptr] = next_state
         self.rewards[self.ptr] = reward
-        self.dones[self.ptr] = float(done)
+        self.dones[self.ptr] = done
 
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)

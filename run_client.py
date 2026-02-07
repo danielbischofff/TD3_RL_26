@@ -3,12 +3,10 @@ from __future__ import annotations
 import argparse
 import uuid
 
-import hockey.hockey_env as h_env
 import numpy as np
 
+import hockey.hockey_env as h_env
 from td3_agent import TD3_agent
-
-
 from comprl.client import Agent, launch_client
 
 
@@ -27,7 +25,6 @@ class RandomAgent(Agent):
             f"game ended: {text_result} with my score: "
             f"{stats[0]} against the opponent with score: {stats[1]}"
         )
-
 
 class HockeyAgent(Agent):
     """A hockey agent that can be weak or strong."""
@@ -63,8 +60,8 @@ class HockeyAgent_TD3(Agent):
 
     def __init__(self, ckpt_path) -> None:
         super().__init__()
-
-        self.hockey_agent = TD3_agent(h_env, ckpt_path)
+        env = h_env.HockeyEnv()
+        self.hockey_agent = TD3_agent(env=env, ckpt_path=ckpt_path)
 
     def get_step(self, observation: list[float]) -> list[float]:
 
@@ -91,7 +88,7 @@ def initialize_agent(agent_args: list[str]) -> Agent:
     parser.add_argument(
         "--agent",
         type=str,
-        choices=["weak", "strong", "random"],
+        choices=["weak", "strong", "random", "td3"],
         default="weak",
         help="Which agent to use.",
     )
@@ -101,6 +98,8 @@ def initialize_agent(agent_args: list[str]) -> Agent:
     agent: Agent
     if args.agent == "weak":
         agent = HockeyAgent(weak=True)
+    elif args.agent == "td3":
+        agent = HockeyAgent_TD3(ckpt_path = "/Users/danielbischoff/Documents/MasterInformatik/RL/FinalProject/checkpoints")
     elif args.agent == "strong":
         agent = HockeyAgent(weak=False)
     elif args.agent == "random":
