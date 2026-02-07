@@ -8,3 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+.DS_Store
+pyproject.toml
+
+/_orga/*
+/.venv
+/wandb/*
+pyproject.toml
+uv.lock
+.python-version
+.gitignore
+_orga/project.pdf
+/checkpoints/*
