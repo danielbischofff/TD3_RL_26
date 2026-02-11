@@ -1,4 +1,4 @@
-from td3_trainer import TD3_trainer
+from td3 import TD3_trainer
 import torch
 import torch.optim as optim
 import torch.nn.functional as F

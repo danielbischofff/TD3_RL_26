@@ -4,9 +4,10 @@ To use the TCML cluster, we need to create a container. You can start with the a
 
 
 To build the container, use the following command:
-singularity build --fakeroot /path/to/container.sif container.def
+singularity build --fakeroot container/container.sif container/container.def
 
 
 Once the container is created, it can be used as follows:
 singularity run /path/to/container.sif python3 ./my_script.py
 
+‚
