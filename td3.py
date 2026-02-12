@@ -15,7 +15,7 @@ class TD3_trainer():
             "tau" : 0.005,
             "policy_delay" : 2,
             "warm_up" : 10000,
-            "max_episodes" : 1000000,
+            "max_episodes" : 2000,
             "exploration_noise_s" : 0.1,
             "target_smoothing_noise_s" : 0.2,
             "target_noise_clipping": 0.5,

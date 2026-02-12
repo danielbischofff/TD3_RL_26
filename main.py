@@ -104,16 +104,22 @@ for eps in range(td3_trainer.max_episodes):
             # ---- ACTOR UPDATE ----
             if total_it % policy_delay == 0:
                 agent_loss = td3_trainer.actor_target_update(state_b)
-                run.log({"agent_loss":agent_loss}, step=total_it)
+                run.log({"agent_loss":agent_loss.item()}, step=total_it)
 
-        # --- CHECKPOINTING per step ---
-        if eps > 0 and eps % td3_trainer.config["checkpoint_interval"] == 0:
-            td3_trainer.save_checkpoint(step=str(total_it))
 
         if terminated or truncated:
             break
 
-    run.log({"episode_return": episode_return}, episode_length=t, winner = info["winner"])
+    # --- CHECKPOINTING per step ---
+    if eps > 0 and eps % td3_trainer.config["checkpoint_interval"] == 0:
+        td3_trainer.save_checkpoint(step=str(total_it))
+
+    run.log({
+        "episode_return": episode_return,
+        "episode_length": t + 1,
+        "winner": info.get("winner", None),
+    }, step=total_it)
+
 
 
 td3_trainer.save_checkpoint(step="last")
