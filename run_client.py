@@ -6,7 +6,7 @@ import uuid
 import numpy as np
 
 import hockey.hockey_env as h_env
-from td3_agent import TD3_agent
+from td3 import TD3_agent
 from comprl.client import Agent, launch_client
 
 
