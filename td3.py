@@ -168,7 +168,7 @@ class TD3_trainer():
     
     def resume_from_check(self, path):
     
-        ckpt = torch.load(path, map_location=self.device)
+        ckpt = torch.load(path, map_location=self.device, weights_only = False)
 
         self.actor.load_state_dict(ckpt["actor"])
         self.critic_1.load_state_dict(ckpt["critic_1"])
