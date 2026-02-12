@@ -5,17 +5,18 @@ import numpy as np
 import torch.nn.functional as F
 
 class TD3_trainer():
-    def __init__(self, obs_dim, act_dim, act_bounds):
+    def __init__(self, obs_dim, act_dim, act_bounds, resume = None):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_dim = act_dim
         self.observation_space_dim = obs_dim
+        self.resume = resume
         self.config = {
             "batch_size" : 100,
             "gamma" : 0.99,
             "tau" : 0.005,
             "policy_delay" : 2,
             "warm_up" : 10000,
-            "max_episodes" : 2000,
+            "max_episodes" : 10000,
             "exploration_noise_s" : 0.1,
             "target_smoothing_noise_s" : 0.2,
             "target_noise_clipping": 0.5,
@@ -45,6 +46,10 @@ class TD3_trainer():
         self.critic_optimizer_1 = torch.optim.Adam(self.critic_1.parameters(), lr=self.config["lr_critic"])
         self.critic_optimizer_2 = torch.optim.Adam(self.critic_2.parameters(), lr=self.config["lr_critic"])
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config["lr_actor"])
+
+        if self.resume:
+            self.resume_from_check(self.resume)
+
        
 
     def select_random_action(self):
@@ -161,9 +166,9 @@ class TD3_trainer():
             }
         torch.save(checkpoint, f"{path}/td3_checkpoint_{step}.pt")
     
-    def resume_from_check(self):
-        path = self.config["checkpoint_path"]
-        ckpt = torch.load(f"{path}/td3_checkpoint.pt", map_location=self.device)
+    def resume_from_check(self, path):
+    
+        ckpt = torch.load(path, map_location=self.device)
 
         self.actor.load_state_dict(ckpt["actor"])
         self.critic_1.load_state_dict(ckpt["critic_1"])

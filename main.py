@@ -16,8 +16,9 @@ obs2 = env.obs_agent_two() # initiate two agents
 obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_checkpoint_01.pt"
 
-td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds)
+td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume)
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
 device = td3_trainer.device
