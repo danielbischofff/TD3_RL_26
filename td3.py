@@ -19,8 +19,8 @@ class TD3_trainer():
             "exploration_noise_s" : 0.1,
             "target_smoothing_noise_s" : 0.2,
             "target_noise_clipping": 0.5,
-            "lr_critic" : 1e-3,
-            "lr_actor" : 1e-3,
+            "lr_critic" : 1e-4,
+            "lr_actor" : 1e-4,
             "checkpoint_path": "./checkpoints",
             "checkpoint_interval": 100
         }
@@ -42,8 +42,8 @@ class TD3_trainer():
         self.critic_1_target.load_state_dict(self.critic_1.state_dict())
         self.critic_2_target.load_state_dict(self.critic_2.state_dict())
 
-        critic_params = list(self.critic_1.parameters()) + list(self.critic_2.parameters())
-        self.critic_optimizer = torch.optim.Adam(critic_params, lr=self.config["lr_critic"])
+        self.critic_optimizer_1 = torch.optim.Adam(self.critic_1.parameters(), lr=self.config["lr_critic"])
+        self.critic_optimizer_2 = torch.optim.Adam(self.critic_2.parameters(), lr=self.config["lr_critic"])
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config["lr_actor"])
        
 
@@ -94,16 +94,19 @@ class TD3_trainer():
         current_Q2 = self.critic_2(state, action)
 
         # ---- Critic loss ----
-        critic_1_loss = F.mse_loss(current_Q1, target_Q)
-        critic_2_loss = F.mse_loss(current_Q2, target_Q)
-        critic_loss = critic_1_loss + critic_2_loss 
+        loss = torch.nn.SmoothL1Loss()
+        critic_1_loss = loss(current_Q1, target_Q)
+        critic_2_loss = loss(current_Q2, target_Q)
+        
 
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
+        self.critic_optimizer_1.zero_grad()
+        self.critic_optimizer_2.zero_grad()
+        critic_1_loss.backward()
+        critic_2_loss.backward()
+        self.critic_optimizer_1.step()
+        self.critic_optimizer_2.step()
 
         return {
-            "critic_loss": critic_loss.item(),
             "critic_1_loss": critic_1_loss.item(),
             "critic_2_loss": critic_2_loss.item(),
         }
@@ -150,7 +153,8 @@ class TD3_trainer():
                 "critic_1_target": self.critic_1_target.state_dict(),
                 "critic_2_target": self.critic_2_target.state_dict(),
                 "actor_optimizer": self.actor_optimizer.state_dict(),
-                "critic_optimizer": self.critic_optimizer.state_dict(),
+                "critic_optimizer_1": self.critic_optimizer_1.state_dict(),
+                "critic_optimizer_2": self.critic_optimizer_2.state_dict(),
                 "replay_buffer": self.buffer,
                 "timestep": step,
                 "config": self.config,
@@ -169,7 +173,8 @@ class TD3_trainer():
         self.critic_2_target.load_state_dict(ckpt["critic_2_target"])
 
         self.actor_optimizer.load_state_dict(ckpt["actor_optimizer"])
-        self.critic_optimizer.load_state_dict(ckpt["critic_optimizer"])
+        self.critic_optimizer_1.load_state_dict(ckpt["critic_optimizer_1"])
+        self.critic_optimizer_2.load_state_dict(ckpt["critic_optimizer_2"])
 
         self.replay_buffer = ckpt["replay_buffer"]
         t = ckpt["timestep"]
@@ -196,7 +201,7 @@ class TD3_agent():
         self.action_bounds = (env.action_space.low[0], env.action_space.high[0])
         self.ckpt_path = ckpt_path
 
-        self.actor = Actor(self.num_actions ,self.observation_space_dim)
+        self.actor = Actor(self.observation_space_dim, self.num_actions)
         self.init_actor()
         self.actor.eval()
 
@@ -217,7 +222,6 @@ class TD3_agent():
         return action.astype(np.float32)
     
     def init_actor(self):
-      
         ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint_last.pt", map_location=self.device)
         self.actor.load_state_dict(ckpt["actor"])
 

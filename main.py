@@ -22,6 +22,7 @@ batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
 device = td3_trainer.device
 total_it = 0
+max_timesteps = 600
 
 # import os
 # os.environ["WANDB_MODE"] = "disabled"
@@ -44,10 +45,12 @@ for eps in range(td3_trainer.max_episodes):
     player2 = h_env.BasicOpponent(weak=True)
     print(f"episode {eps}")
 
-    done = False
     episode_return = 0
+    t = 0
     
-    while not done:
+    # while not terminated or truncated:
+    for t in range(max_timesteps):
+
         # ---- Buffer Step ----
         if total_it < td3_trainer.config["warm_up"]:
             # Warmup action
@@ -63,49 +66,54 @@ for eps in range(td3_trainer.max_episodes):
 
         # --- Env step ---
         obs1_new, r, terminated, truncated, info = env.step(np.hstack([a1, a2]))
-        done = terminated or truncated
+        # r = + info["reward_puck_direction"]+ info["reward_touch_puck"] 
+
         episode_return += r
         total_it += 1
-        obs2 = env.obs_agent_two()
 
         # --- Add to Buffer ---
-        td3_trainer.buffer.add(obs1, a1, r, obs1_new, done)
+        td3_trainer.buffer.add(obs1, a1, r, obs1_new, terminated)
+
+        obs1 = obs1_new # make new obs to current
+        obs2 = env.obs_agent_two()
 
         # ---- LEARNING PHASE ----
         if total_it >= td3_trainer.config["warm_up"] and td3_trainer.buffer.size >= batch_size:
 
-            state, action, reward, next_state, done_b = td3_trainer.buffer.sample(batch_size)
+            states, actions, rewards, next_states, dones_b = td3_trainer.buffer.sample(batch_size)
 
-            state_b = torch.FloatTensor(state).to(device)
-            action_b = torch.FloatTensor(action).to(device)
-            reward_b = torch.FloatTensor(reward).to(device)
-            next_state_b = torch.FloatTensor(next_state).to(device)
-            done_b = torch.from_numpy(done_b.astype(np.float32)).to(device)
-            done_b = torch.as_tensor(done_b, dtype=torch.float32, device=device)
+            state_b = torch.FloatTensor(states).to(device)
+            action_b = torch.FloatTensor(actions).to(device)
+            reward_b = torch.FloatTensor(rewards).to(device)
+            next_state_b = torch.FloatTensor(next_states).to(device)
+            dones_b = torch.from_numpy(dones_b.astype(np.float32)).to(device)
+            dones_b = torch.as_tensor(dones_b, dtype=torch.float32, device=device)
 
             assert state_b.shape == (batch_size, obs_dim)
             assert action_b.shape == (batch_size, act_dim)
             assert reward_b.shape == (batch_size, 1)
-            assert done_b.shape == (batch_size, 1)
+            assert dones_b.shape == (batch_size, 1)
             assert state_b.device.type == device.type
             assert td3_trainer.actor.l1.weight.device.type == device.type
 
-        
 
             # ---- CRITIC UPDATE ----
-            critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, done_b)
-            run.log({"critic_loss": critic_loss["critic_loss"], "critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
+            critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, dones_b)
+            run.log({"critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
 
             # ---- ACTOR UPDATE ----
             if total_it % policy_delay == 0:
                 agent_loss = td3_trainer.actor_target_update(state_b)
                 run.log({"agent_loss":agent_loss}, step=total_it)
 
-            # --- CHECKPOINTING per step ---
-            if eps > 0 and eps % td3_trainer.config["checkpoint_interval"] == 0:
-                td3_trainer.save_checkpoint(step=str(total_it))
+        # --- CHECKPOINTING per step ---
+        if eps > 0 and eps % td3_trainer.config["checkpoint_interval"] == 0:
+            td3_trainer.save_checkpoint(step=str(total_it))
 
-    run.log({"episode_return": episode_return}, step=total_it)
+        if terminated or truncated:
+            break
+
+    run.log({"episode_return": episode_return}, episode_length=t, winner = info["winner"])
 
 
 td3_trainer.save_checkpoint(step="last")
