@@ -1,4 +1,4 @@
-from td3_trainer import TD3_trainer
+from td3 import TD3_trainer
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
@@ -17,7 +17,7 @@ obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
 
-td3_trainer = TD3_trainer(act_dim, obs_dim, act_bounds)
+td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds)
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
 device = td3_trainer.device
@@ -87,8 +87,9 @@ for eps in range(td3_trainer.max_episodes):
             assert action_b.shape == (batch_size, act_dim)
             assert reward_b.shape == (batch_size, 1)
             assert done_b.shape == (batch_size, 1)
-            assert state_b.device == device
-            assert td3_trainer.actor.l1.weight.device == device
+            assert state_b.device.type == device.type
+            assert td3_trainer.actor.l1.weight.device.type == device.type
+
         
 
             # ---- CRITIC UPDATE ----
