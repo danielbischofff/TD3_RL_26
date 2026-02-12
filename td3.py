@@ -22,7 +22,7 @@ class TD3_trainer():
             "lr_critic" : 1e-4,
             "lr_actor" : 1e-4,
             "checkpoint_path": "./checkpoints",
-            "checkpoint_interval": 100
+            "checkpoint_interval": 1000
         }
         self.max_episodes = self.config["max_episodes"]
         self.action_bounds = act_bounds

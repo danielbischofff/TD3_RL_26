@@ -28,7 +28,6 @@ class RandomAgent(Agent):
 
     def on_end_game(self, result: bool, stats: list[float]) -> None:
         text_result = "won" if result else "lost"
-        print(f"game ended: {text_result} | my score: {stats[0]} vs opp score: {stats[1]}")
 
 
 class HockeyAgent(Agent):
@@ -45,11 +44,9 @@ class HockeyAgent(Agent):
 
     def on_start_game(self, game_id) -> None:
         game_id = uuid.UUID(int=int.from_bytes(game_id))
-        print(f"Game started (id: {game_id})")
 
     def on_end_game(self, result: bool, stats: list[float]) -> None:
         text_result = "won" if result else "lost"
-        print(f"Game ended: {text_result} | my score: {stats[0]} vs opp score: {stats[1]}")
 
 
 class HockeyAgent_TD3(Agent):
@@ -67,11 +64,9 @@ class HockeyAgent_TD3(Agent):
 
     def on_start_game(self, game_id) -> None:
         game_id = uuid.UUID(int=int.from_bytes(game_id))
-        print(f"Game started (id: {game_id})")
 
     def on_end_game(self, result: bool, stats: list[float]) -> None:
         text_result = "won" if result else "lost"
-        print(f"Game ended: {text_result} | my score: {stats[0]} vs opp score: {stats[1]}")
 
 
 # -------------------------
@@ -81,83 +76,75 @@ class HockeyAgent_TD3(Agent):
 def run_local_games_vs_weak(
     agent: Agent,
     n_games: int = 20,
-    video_path: str = "hockey_vs_weak.mp4",
-    record_games: int = 1,          # how many episodes to record into the video (1 keeps file small)
+    video_path: str = "./results/hockey_vs_weak.mp4",
     fps: int = 50,
     score_factor: float = 0.25,
     seed: int = 0,
+    opponnent: str = "weak",
 ):
     """
-    Runs games locally vs BasicOpponent(weak=True) using HockeyEnv_BasicOpponent.
-    Records up to `record_games` episodes into an MP4 and prints win/loss stats + score.
+    Runs games locally vs BasicOpponent using HockeyEnv_BasicOpponent.
+    Records ALL episodes into ONE MP4 (concatenated) and prints win/loss stats + score.
     """
     os.makedirs(os.path.dirname(video_path) or ".", exist_ok=True)
 
-    # Single-agent wrapper env: you supply 4D action; opponent is built-in.
-    env = h_env.HockeyEnv_BasicOpponent(mode=h_env.Mode.NORMAL, weak_opponent=True)
-
-    rng = np.random.default_rng(seed)
+    weak_opponent = (opponnent.lower() == "weak")
+    env = h_env.HockeyEnv_BasicOpponent(mode=h_env.Mode.NORMAL, weak_opponent=weak_opponent)
 
     wins = losses = ties = 0
-    frames = []
 
-    for ep in range(n_games):
-        obs, info = env.reset(seed=int(rng.integers(0, 1_000_000)))
+    # Stream frames directly to disk (no huge RAM usage)
+    writer = imageio.get_writer(video_path, fps=fps)
 
-        # "game_id" in the guide is bytes; for local eval we can synthesize one:
-        fake_game_id = uuid.uuid4().int.to_bytes(16, byteorder="big", signed=False)
-        agent.on_start_game(fake_game_id)
+    try:
+        # optional reproducibility
+        rng = np.random.default_rng(seed)
 
-        terminated = truncated = False
-        ep_return = 0.0
+        for ep in range(n_games):
+            obs, info = env.reset(seed=int(rng.integers(0, 1_000_000)))
 
-        # record initial frame
-        if ep < record_games:
-            frames.append(env.render(mode="rgb_array"))
+            fake_game_id = uuid.uuid4().int.to_bytes(16, byteorder="big", signed=False)
+            agent.on_start_game(fake_game_id)
 
-        t = 0
-        while True:
-            action = agent.get_step(obs.tolist())   # agent expects list[float]
-            obs, reward, terminated, truncated, info = env.step(np.asarray(action, dtype=np.float32))
+            terminated = truncated = False
+            ep_return = 0.0
 
-            ep_return += float(reward)
+            # record initial frame
+            writer.append_data(env.render(mode="rgb_array"))
 
-            if ep < record_games:
-                frames.append(env.render(mode="rgb_array"))
+            while True:
+                action = agent.get_step(obs.tolist())
+                obs, reward, terminated, truncated, info = env.step(np.asarray(action, dtype=np.float32))
 
-            t += 1
-            if terminated or truncated:
-                break
+                ep_return += float(reward)
 
-        winner = info.get("winner", 0)  # 1: agent won, -1: opponent won, 0: tie
-        if winner == 1:
-            wins += 1
-            result_bool = True
-        elif winner == -1:
-            losses += 1
-            result_bool = False
-        else:
-            ties += 1
-            result_bool = False  # ties counted as not-wins in this boolean
+                # record every step
+                writer.append_data(env.render(mode="rgb_array"))
 
-        # Stats format like the guide prints (my score vs opp score).
-        # If you want "score" to be episode return, use ep_return; otherwise just use winner-based.
-        stats = [float(ep_return), 0.0]
-        agent.on_end_game(result_bool, stats)
+                if terminated or truncated:
+                    break
 
-        print(f"[EP {ep:03d}] steps={t} | winner={winner} | return={ep_return:.3f}")
+            winner = info.get("winner", 0)
+            if winner == 1:
+                wins += 1
+                result_bool = True
+            elif winner == -1:
+                losses += 1
+                result_bool = False
+            else:
+                ties += 1
+                result_bool = False
 
-    env.close()
+            agent.on_end_game(result_bool, [float(ep_return), 0.0])
 
-    # Write video
-    if frames:
-        imageio.mimsave(video_path, frames, fps=fps)
-        print(f"\nSaved video to: {video_path}")
+    finally:
+        writer.close()
+        env.close()
 
-    # Print summary score
     total = wins + losses + ties
     score = (wins - losses) * score_factor
 
+    print(f"\nSaved video to: {video_path}")
     print("\n=== Summary ===")
     print(f"Games: {total}")
     print(f"Wins / Losses / Ties: {wins} / {losses} / {ties}")
@@ -167,13 +154,12 @@ def run_local_games_vs_weak(
 if __name__ == "__main__":
     # Choose one:
     # agent = RandomAgent()
-    agent = HockeyAgent_TD3(ckpt_path="/TD3_RL_26/checkpoints")
+    agent = HockeyAgent_TD3(ckpt_path="./checkpoints")
 
     run_local_games_vs_weak(
         agent=agent,
         n_games=20,
         video_path="hockey_vs_weak.mp4",
-        record_games=1,
         fps=50,
         score_factor=0.25,
         seed=0,
