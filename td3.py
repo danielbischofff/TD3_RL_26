@@ -164,7 +164,7 @@ class TD3_trainer():
                 "timestep": step,
                 "config": self.config,
             }
-        torch.save(checkpoint, f"{path}/td3_checkpoint_{step}.pt")
+        torch.save(checkpoint, f"{path}/td3_ckp_{step}.pt")
     
     def resume_from_check(self, path):
     

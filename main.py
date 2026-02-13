@@ -59,6 +59,9 @@ for eps in range(td3_trainer.max_episodes):
     print(f"episode {eps}")
     episode_return = 0
     t = 0
+    critic1_losses = []
+    critic2_losses = []
+    actor_losses = []
     
     # while not terminated or truncated:
     for t in range(max_timesteps):
@@ -111,12 +114,16 @@ for eps in range(td3_trainer.max_episodes):
 
             # ---- CRITIC UPDATE ----
             critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, dones_b)
-            run.log({"critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
+            # run.log({"critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
+
+            critic1_losses.append(critic_loss["critic_1_loss"])
+            critic2_losses.append(critic_loss["critic_2_loss"])
 
             # ---- ACTOR UPDATE ----
             if total_it % policy_delay == 0:
                 agent_loss = td3_trainer.actor_target_update(state_b)
-                run.log({"agent_loss":agent_loss.item()}, step=total_it)
+                # run.log({"agent_loss":agent_loss.item()}, step=total_it)
+                actor_losses.append(agent_loss.item())
 
 
         if terminated or truncated:
@@ -127,10 +134,13 @@ for eps in range(td3_trainer.max_episodes):
         td3_trainer.save_checkpoint(step=str(total_it))
 
     run.log({
-        "episode_return": episode_return,
-        "episode_length": t + 1,
-        "winner": info.get("winner", None),
-    }, step=total_it)
+    "episode_return": episode_return,
+    "episode_length": t + 1,
+    "winner": info.get("winner", None),
 
+    "critic_1_loss": float(np.mean(critic1_losses)) if critic1_losses else None,
+    "critic_2_loss": float(np.mean(critic2_losses)) if critic2_losses else None,
+    "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
+    }, step=total_it)
 
 td3_trainer.save_checkpoint(step="last")
