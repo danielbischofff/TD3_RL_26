@@ -227,7 +227,7 @@ class TD3_agent():
         return action.astype(np.float32)
     
     def init_actor(self):
-        ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint_last.pt", map_location=self.device)
+        ckpt = torch.load(f"{self.ckpt_path}", map_location=self.device)
         self.actor.load_state_dict(ckpt["actor"])
 
 
