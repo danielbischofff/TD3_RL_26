@@ -6,6 +6,7 @@ import numpy as np
 
 import hockey.hockey_env as h_env
 from comprl.client import Agent
+from td3 import TD3_agent
 
 # Video writing
 try:
@@ -56,8 +57,10 @@ class HockeyAgent_TD3(Agent):
         # IMPORTANT: for HockeyEnv_BasicOpponent, action is 4D (player1 only).
         # We'll still construct TD3_agent using the base env class for dims.
         env = h_env.HockeyEnv()
-        from td3 import TD3_agent
-        self.td3 = TD3_agent(env=env, ckpt_path=ckpt_path)
+        obs_dim = env.observation_space.shape[0]
+        act_dim = env.num_actions
+        act_bounds = (env.action_space.low[0], env.action_space.high[0])
+        self.td3 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
 
     def get_step(self, observation: list[float]) -> list[float]:
         return self.td3.act(observation).tolist()

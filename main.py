@@ -1,10 +1,11 @@
-from td3 import TD3_trainer
+from td3 import TD3_trainer, TD3_agent
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
 import hockey.hockey_env as h_env
 import numpy as np
 import wandb
+
 
 # ---------------
 # Initialization
@@ -28,7 +29,7 @@ total_it = 0
 max_timesteps = 600
 
 # --- opponent init ---
-opponent = "strong"
+opponent = "td3"
 
 # import os
 # os.environ["WANDB_MODE"] = "disabled"
@@ -50,6 +51,8 @@ for eps in range(td3_trainer.max_episodes):
     # --- Create Opponent ---
     if opponent == "strong":
         player2 = h_env.BasicOpponent(weak=False)
+    if opponent == "td3":
+        player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
     else:
         player2 = h_env.BasicOpponent(weak=True)
 
@@ -141,6 +144,6 @@ for eps in range(td3_trainer.max_episodes):
     "critic_1_loss": float(np.mean(critic1_losses)) if critic1_losses else None,
     "critic_2_loss": float(np.mean(critic2_losses)) if critic2_losses else None,
     "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
-    }, step=total_it)
+    }, step=eps)
 
 td3_trainer.save_checkpoint(step="last")

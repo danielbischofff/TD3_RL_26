@@ -189,16 +189,14 @@ class TD3_trainer():
 
 
 class TD3_agent():
-    def __init__(self, env, ckpt_path):
-        self.env = env
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.num_actions = env.num_actions
-        self.observation_space = env.observation_space
-        self.observation_space_dim = env.observation_space.shape[0]
-        self.action_bounds = (env.action_space.low[0], env.action_space.high[0])
+    def __init__(self, obs_dim, act_dim, act_bounds, ckpt_path):
         self.ckpt_path = ckpt_path
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.action_dim = act_dim
+        self.observation_space_dim = obs_dim
+        self.action_bounds = act_bounds
 
-        self.actor = Actor(self.observation_space_dim, self.num_actions)
+        self.actor = Actor(self.observation_space_dim, self.action_dim)
         self.init_actor()
         self.actor.eval()
 
@@ -219,7 +217,7 @@ class TD3_agent():
         return action.astype(np.float32)
     
     def init_actor(self):
-        ckpt = torch.load(f"{self.ckpt_path}/td3_checkpoint_last.pt", map_location=self.device)
+        ckpt = torch.load(self.ckpt_path, map_location=self.device, weights_only=False)
         self.actor.load_state_dict(ckpt["actor"])
 
 

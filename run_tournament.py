@@ -61,7 +61,10 @@ class HockeyAgent_TD3(Agent):
     def __init__(self, ckpt_path) -> None:
         super().__init__()
         env = h_env.HockeyEnv()
-        self.hockey_agent = TD3_agent(env=env, ckpt_path=ckpt_path)
+        obs_dim = env.observation_space.shape[0]
+        act_dim = env.num_actions
+        act_bounds = (env.action_space.low[0], env.action_space.high[0])
+        self.hockey_agent = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
 
     def get_step(self, observation: list[float]) -> list[float]:
 
