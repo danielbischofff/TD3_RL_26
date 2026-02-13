@@ -164,7 +164,7 @@ class TD3_trainer():
                 "timestep": step,
                 "config": self.config,
             }
-        torch.save(checkpoint, f"{path}/td3_checkpoint_{step}.pt")
+        torch.save(checkpoint, f"{path}/td3_ckp_{step}.pt")
     
     def resume_from_check(self, path):
     
@@ -187,14 +187,6 @@ class TD3_trainer():
 
         return t
 
-
-
-    # def load_trained_model(self):
-    #     ckpt = torch.load("td3_actor.pt", map_location=self.device)
-
-    #     self.actor.load_state_dict(ckpt["actor"])
-    #     self.actor.to(self.device)
-    #     self.actor.eval()
 
 class TD3_agent():
     def __init__(self, env, ckpt_path):

@@ -10,14 +10,16 @@ import wandb
 # Initialization
 # ---------------
 
+# --- Env init ---
 env = h_env.HockeyEnv() 
 env.reset()  # Reset environment to initialize observation_space
 obs2 = env.obs_agent_two() # initiate two agents
 obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_checkpoint_01.pt"
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_03_wo.pt"
 
+# --- model init ---
 td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume)
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
@@ -25,10 +27,13 @@ device = td3_trainer.device
 total_it = 0
 max_timesteps = 600
 
+# --- opponent init ---
+opponent = "strong"
+
 # import os
 # os.environ["WANDB_MODE"] = "disabled"
 
-# WANDB logging
+# --- logging init ---
 run = wandb.init(
     entity="bischoffd",
     name="td3_run_002",
@@ -41,13 +46,22 @@ run = wandb.init(
 # ----------
 
 for eps in range(td3_trainer.max_episodes):
+
+    # --- Create Opponent ---
+    if opponent == "strong":
+        player2 = h_env.BasicOpponent(weak=False)
+    else:
+        player2 = h_env.BasicOpponent(weak=True)
+
+    # --- Env Step ---
     obs1, info = env.reset()
     obs2 = env.obs_agent_two()
-    player2 = h_env.BasicOpponent(weak=True)
     print(f"episode {eps}")
-
     episode_return = 0
     t = 0
+    critic1_losses = []
+    critic2_losses = []
+    actor_losses = []
     
     # while not terminated or truncated:
     for t in range(max_timesteps):
@@ -100,12 +114,16 @@ for eps in range(td3_trainer.max_episodes):
 
             # ---- CRITIC UPDATE ----
             critic_loss = td3_trainer.critic_update(state_b, action_b, reward_b, next_state_b, dones_b)
-            run.log({"critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
+            # run.log({"critic_1_loss": critic_loss["critic_1_loss"], "critic_2_loss": critic_loss["critic_2_loss"]}, step=total_it)
+
+            critic1_losses.append(critic_loss["critic_1_loss"])
+            critic2_losses.append(critic_loss["critic_2_loss"])
 
             # ---- ACTOR UPDATE ----
             if total_it % policy_delay == 0:
                 agent_loss = td3_trainer.actor_target_update(state_b)
-                run.log({"agent_loss":agent_loss.item()}, step=total_it)
+                # run.log({"agent_loss":agent_loss.item()}, step=total_it)
+                actor_losses.append(agent_loss.item())
 
 
         if terminated or truncated:
@@ -116,11 +134,13 @@ for eps in range(td3_trainer.max_episodes):
         td3_trainer.save_checkpoint(step=str(total_it))
 
     run.log({
-        "episode_return": episode_return,
-        "episode_length": t + 1,
-        "winner": info.get("winner", None),
+    "episode_return": episode_return,
+    "episode_length": t + 1,
+    "winner": info.get("winner", None),
+
+    "critic_1_loss": float(np.mean(critic1_losses)) if critic1_losses else None,
+    "critic_2_loss": float(np.mean(critic2_losses)) if critic2_losses else None,
+    "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
     }, step=total_it)
-
-
 
 td3_trainer.save_checkpoint(step="last")
