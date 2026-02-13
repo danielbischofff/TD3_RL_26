@@ -10,14 +10,16 @@ import wandb
 # Initialization
 # ---------------
 
+# --- Env init ---
 env = h_env.HockeyEnv() 
 env.reset()  # Reset environment to initialize observation_space
 obs2 = env.obs_agent_two() # initiate two agents
 obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_checkpoint_01.pt"
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_03_wo.pt"
 
+# --- model init ---
 td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume)
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = 2
@@ -25,10 +27,13 @@ device = td3_trainer.device
 total_it = 0
 max_timesteps = 600
 
+# --- opponent init ---
+opponent = "strong"
+
 # import os
 # os.environ["WANDB_MODE"] = "disabled"
 
-# WANDB logging
+# --- logging init ---
 run = wandb.init(
     entity="bischoffd",
     name="td3_run_002",
@@ -41,11 +46,17 @@ run = wandb.init(
 # ----------
 
 for eps in range(td3_trainer.max_episodes):
+
+    # --- Create Opponent ---
+    if opponent == "strong":
+        player2 = h_env.BasicOpponent(weak=False)
+    else:
+        player2 = h_env.BasicOpponent(weak=True)
+
+    # --- Env Step ---
     obs1, info = env.reset()
     obs2 = env.obs_agent_two()
-    player2 = h_env.BasicOpponent(weak=True)
     print(f"episode {eps}")
-
     episode_return = 0
     t = 0
     
@@ -120,7 +131,6 @@ for eps in range(td3_trainer.max_episodes):
         "episode_length": t + 1,
         "winner": info.get("winner", None),
     }, step=total_it)
-
 
 
 td3_trainer.save_checkpoint(step="last")
