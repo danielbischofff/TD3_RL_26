@@ -79,8 +79,7 @@ class HockeyAgent_TD3(Agent):
 def run_local_games_vs_weak(
     agent: Agent,
     n_games: int = 20,
-    video_dir: str = "./results",
-    video_prefix: str = "hockey_vs_weak",
+    video_path: str = "./results/hockey_vs_weak_all.mp4",
     fps: int = 50,
     score_factor: float = 0.25,
     seed: int = 0,
@@ -88,15 +87,21 @@ def run_local_games_vs_weak(
 ):
     """
     Runs games locally vs BasicOpponent using HockeyEnv_BasicOpponent.
-    Saves ONE MP4 PER EPISODE (no concatenation) and prints win/loss stats + score at the end.
+    Saves ONE MP4 containing ALL episodes concatenated (no per-episode files).
     """
-    os.makedirs(video_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(video_path) or ".", exist_ok=True)
 
-    weak_opponent = (opponnent.lower() == "weak")
-    env = h_env.HockeyEnv_BasicOpponent(mode=h_env.Mode.NORMAL, weak_opponent=weak_opponent)
+    if opponnent == "strong":
+        env = h_env.HockeyEnv_BasicOpponent(mode=h_env.Mode.NORMAL, weak_opponent=False)
+    else:
+        env = h_env.HockeyEnv_BasicOpponent(mode=h_env.Mode.NORMAL, weak_opponent=True)
+    
 
     wins = losses = ties = 0
     rng = np.random.default_rng(seed)
+
+    # One writer for the whole run (concatenation)
+    writer = imageio.get_writer(video_path, fps=fps)
 
     try:
         for ep in range(n_games):
@@ -105,29 +110,21 @@ def run_local_games_vs_weak(
             fake_game_id = uuid.uuid4().int.to_bytes(16, byteorder="big", signed=False)
             agent.on_start_game(fake_game_id)
 
-            # create one writer per episode
-            video_path = os.path.join(video_dir, f"{video_prefix}_ep{ep:03d}.mp4")
-            writer = imageio.get_writer(video_path, fps=fps)
-
             terminated = truncated = False
             ep_return = 0.0
 
-            try:
-                # initial frame
+            # record initial frame
+            writer.append_data(env.render(mode="rgb_array"))
+
+            while True:
+                action = agent.get_step(obs.tolist())
+                obs, reward, terminated, truncated, info = env.step(np.asarray(action, dtype=np.float32))
+                ep_return += float(reward)
+
                 writer.append_data(env.render(mode="rgb_array"))
 
-                while True:
-                    action = agent.get_step(obs.tolist())
-                    obs, reward, terminated, truncated, info = env.step(np.asarray(action, dtype=np.float32))
-                    ep_return += float(reward)
-
-                    # frame each step
-                    writer.append_data(env.render(mode="rgb_array"))
-
-                    if terminated or truncated:
-                        break
-            finally:
-                writer.close()
+                if terminated or truncated:
+                    break
 
             winner = info.get("winner", 0)
             if winner == 1:
@@ -143,6 +140,7 @@ def run_local_games_vs_weak(
             agent.on_end_game(result_bool, [float(ep_return), 0.0])
 
     finally:
+        writer.close()
         env.close()
 
     total = wins + losses + ties
@@ -152,20 +150,20 @@ def run_local_games_vs_weak(
     print(f"Games: {total}")
     print(f"Wins / Losses / Ties: {wins} / {losses} / {ties}")
     print(f"Score = (wins - losses) * factor = ({wins} - {losses}) * {score_factor} = {score:.3f}")
-    print(f"Videos saved to: {os.path.abspath(video_dir)} (prefix: {video_prefix}_epXXX.mp4)")
+    print(f"Video saved to: {os.path.abspath(video_path)}")
+
 
 
 
 if __name__ == "__main__":
-    # Choose one:
-    # agent = RandomAgent()
-    agent = HockeyAgent_TD3(ckpt_path="./checkpoints")
+    agent = HockeyAgent_TD3(ckpt_path="checkpoints/td3_ckp_04_so.pt")
 
     run_local_games_vs_weak(
         agent=agent,
-        n_games=20,
-        video_path="hockey_vs_weak.mp4",
+        n_games=10,
+        video_path="./results/hockey_vs_strong_all.mp4",
         fps=50,
         score_factor=0.25,
         seed=0,
+        opponnent="strong",
     )
