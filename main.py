@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import hockey.hockey_env as h_env
 import numpy as np
 import wandb
+from hockey_agent import RandomAgent, MixedAgent
 
 
 # ---------------
@@ -30,6 +31,24 @@ max_timesteps = 600
 
 # --- opponent init ---
 opponent = "td3"
+td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_04_so.pt"
+
+if opponent == "strong":
+    player2 = h_env.BasicOpponent(weak=False)
+if opponent == "td3":
+    player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
+if opponent == "mixed":
+    player2 = h_env.BasicOpponent(weak=True)
+    opponents = {
+        "weak":   h_env.BasicOpponent(weak=True),
+        "strong": h_env.BasicOpponent(weak=False),
+        "random": RandomAgent(act_dim, act_bounds),
+        "td3_v1": TD3_agent(obs_dim, act_dim, act_bounds, td3_v1_path),
+    }
+    probs = {"weak": 0.10, "strong": 0.30, "random": 0.10, "td3_v1": 0.50}
+    player2 = MixedAgent(opponents, probs, seed=0)
+else:
+    player2 = h_env.BasicOpponent(weak=False)
 
 # import os
 # os.environ["WANDB_MODE"] = "disabled"
@@ -48,13 +67,9 @@ run = wandb.init(
 
 for eps in range(td3_trainer.max_episodes):
 
-    # --- Create Opponent ---
-    if opponent == "strong":
-        player2 = h_env.BasicOpponent(weak=False)
-    if opponent == "td3":
-        player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
-    else:
-        player2 = h_env.BasicOpponent(weak=True)
+    # Change opp if new eps
+    if opponent == "mixed":
+        opp_name = player2.new_episode()
 
     # --- Env Step ---
     obs1, info = env.reset()
