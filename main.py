@@ -18,7 +18,7 @@ obs2 = env.obs_agent_two() # initiate two agents
 obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_03_wo.pt"
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_04_so.pt"
 
 # --- model init ---
 td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume)
@@ -37,7 +37,7 @@ opponent = "td3"
 # --- logging init ---
 run = wandb.init(
     entity="bischoffd",
-    name="td3_run_002",
+    name="td3_run_005",
     project="RL_TD3_hockey",
     config=td3_trainer.config,
 ) 
@@ -144,6 +144,6 @@ for eps in range(td3_trainer.max_episodes):
     "critic_1_loss": float(np.mean(critic1_losses)) if critic1_losses else None,
     "critic_2_loss": float(np.mean(critic2_losses)) if critic2_losses else None,
     "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
-    }, step=eps)
+    }, step=total_it)
 
 td3_trainer.save_checkpoint(step="last")

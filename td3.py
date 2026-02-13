@@ -189,14 +189,14 @@ class TD3_trainer():
 
 
 class TD3_agent():
-    def __init__(self, obs_dim, act_dim, act_bounds, ckpt_path):
+    def __init__(self, obs_dim, act_dim, act_bounds, ckpt_path, device="cpu"):
         self.ckpt_path = ckpt_path
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_dim = act_dim
         self.observation_space_dim = obs_dim
         self.action_bounds = act_bounds
 
-        self.actor = Actor(self.observation_space_dim, self.action_dim)
+        self.actor = Actor(self.observation_space_dim, self.action_dim).to(self.device)
         self.init_actor()
         self.actor.eval()
 
