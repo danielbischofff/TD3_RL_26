@@ -5,11 +5,12 @@ import numpy as np
 import torch.nn.functional as F
 
 class TD3_trainer():
-    def __init__(self, obs_dim, act_dim, act_bounds, resume = None):
+    def __init__(self, obs_dim, act_dim, act_bounds, resume_ckpt = None, resume_buffer=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_dim = act_dim
         self.observation_space_dim = obs_dim
-        self.resume = resume
+        self.resume_ckpt = resume_ckpt
+        self.resume_buffer = resume_buffer
         self.config = {
             "batch_size" : 100,
             "gamma" : 0.99,
@@ -25,10 +26,11 @@ class TD3_trainer():
             "checkpoint_path": "./checkpoints",
             "checkpoint_interval": 1000
         }
+        self.start_timestep = 0
         self.max_episodes = self.config["max_episodes"]
         self.action_bounds = act_bounds
-        self.initiate_models()
         self.buffer = ReplayBuffer(state_dim=self.observation_space_dim, action_dim=self.action_dim)
+        self.initiate_models()
 
     def initiate_models(self):
         self.actor = Actor(self.observation_space_dim, self.action_dim, max_action=1).to(self.device)
@@ -47,10 +49,9 @@ class TD3_trainer():
         self.critic_optimizer_2 = torch.optim.Adam(self.critic_2.parameters(), lr=self.config["lr_critic"])
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.config["lr_actor"])
 
-        if self.resume:
-            self.resume_from_check(self.resume)
-
-       
+        if self.resume_ckpt:
+            self.resume_from_check(self.resume_ckpt)
+   
 
     def select_random_action(self):
         return np.random.uniform(self.action_bounds[0],self.action_bounds[1], self.action_dim).tolist()
@@ -142,7 +143,7 @@ class TD3_trainer():
 
         return actor_loss
 
-    def save_checkpoint(self, step, small=False):
+    def save_checkpoint(self, step, name="", small=False):
         path = self.config["checkpoint_path"]
         if small:
             checkpoint = {
@@ -164,11 +165,12 @@ class TD3_trainer():
                 "timestep": step,
                 "config": self.config,
             }
-        torch.save(checkpoint, f"{path}/td3_ckp_{step}.pt")
+        torch.save(checkpoint, f"{path}/td3_ckp_{step}_{name}.pt")
     
     def resume_from_check(self, path):
     
         ckpt = torch.load(path, map_location=self.device, weights_only = False)
+        self.config = ckpt["config"]
 
         self.actor.load_state_dict(ckpt["actor"])
         self.critic_1.load_state_dict(ckpt["critic_1"])
@@ -181,11 +183,10 @@ class TD3_trainer():
         self.critic_optimizer_1.load_state_dict(ckpt["critic_optimizer_1"])
         self.critic_optimizer_2.load_state_dict(ckpt["critic_optimizer_2"])
 
-        self.replay_buffer = ckpt["replay_buffer"]
-        t = ckpt["timestep"]
-        self.config = ckpt["config"]
 
-        return t
+        if self.resume_buffer:
+            self.buffer = ckpt["replay_buffer"]
+            self.start_timestep = int(ckpt["timestep"])
 
 
 class TD3_agent():

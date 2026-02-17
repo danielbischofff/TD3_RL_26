@@ -19,25 +19,27 @@ obs2 = env.obs_agent_two() # initiate two agents
 obs_dim = env.observation_space.shape[0]
 act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_04_so.pt"
 
 # --- model init ---
-td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume)
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_520811_td3.pt" # -
+resume_buffer = False # -
+
+td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume, resume_buffer)
 batch_size = td3_trainer.config["batch_size"]
-policy_delay = 2
+policy_delay = td3_trainer.config["policy_delay"]
 device = td3_trainer.device
-total_it = 0
+total_it = td3_trainer.start_timestep
 max_timesteps = 600
 
 # --- opponent init ---
-opponent = "td3"
-td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_04_so.pt"
+opponent = "mixed" # -
+td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_520811_td3.pt" # -
 
 if opponent == "strong":
     player2 = h_env.BasicOpponent(weak=False)
-if opponent == "td3":
-    player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
-if opponent == "mixed":
+elif opponent == "td3":
+    player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path=td3_v1_path)
+elif opponent == "mixed":
     player2 = h_env.BasicOpponent(weak=True)
     opponents = {
         "weak":   h_env.BasicOpponent(weak=True),
@@ -45,6 +47,7 @@ if opponent == "mixed":
         "random": RandomAgent(act_dim, act_bounds),
         "td3_v1": TD3_agent(obs_dim, act_dim, act_bounds, td3_v1_path),
     }
+    OPP_ID = {"weak": 0, "strong": 1, "random": 2, "td3_v1": 3}
     probs = {"weak": 0.10, "strong": 0.30, "random": 0.10, "td3_v1": 0.50}
     player2 = MixedAgent(opponents, probs, seed=0)
 else:
@@ -56,9 +59,10 @@ else:
 # --- logging init ---
 run = wandb.init(
     entity="bischoffd",
-    name="td3_run_005",
+    name="td3_run_006",
     project="RL_TD3_hockey",
     config=td3_trainer.config,
+    tags = [f"{opponent}_opp", f"resume: {True if resume else False}", f"resume_buffer: {resume_buffer}"], 
 ) 
 
 # ----------
@@ -70,6 +74,10 @@ for eps in range(td3_trainer.max_episodes):
     # Change opp if new eps
     if opponent == "mixed":
         opp_name = player2.new_episode()
+        run.log({
+            "opponent/name": opp_name,              # shows in history, not great for plots
+            "opponent/id": OPP_ID.get(opp_name, -1) # plot-able
+        }, step=total_it)
 
     # --- Env Step ---
     obs1, info = env.reset()
@@ -161,4 +169,4 @@ for eps in range(td3_trainer.max_episodes):
     "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
     }, step=total_it)
 
-td3_trainer.save_checkpoint(step="last")
+td3_trainer.save_checkpoint(step=str(total_it), name="last")
