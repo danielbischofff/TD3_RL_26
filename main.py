@@ -21,8 +21,8 @@ act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
 
 # --- model init ---
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_520811_td3.pt" # -
-resume_buffer = False # -
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_03.pt" # -
+resume_buffer = True # -
 
 td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume, resume_buffer)
 batch_size = td3_trainer.config["batch_size"]
@@ -33,7 +33,7 @@ max_timesteps = 600
 
 # --- opponent init ---
 opponent = "mixed" # -
-td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_520811_td3.pt" # -
+td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_03.pt" # -
 
 if opponent == "strong":
     player2 = h_env.BasicOpponent(weak=False)
@@ -59,7 +59,7 @@ else:
 # --- logging init ---
 run = wandb.init(
     entity="bischoffd",
-    name="td3_run_006",
+    name="td3_run_mixo_006_4",  # -
     project="RL_TD3_hockey",
     config=td3_trainer.config,
     tags = [f"{opponent}_opp", f"resume: {True if resume else False}", f"resume_buffer: {resume_buffer}"], 
@@ -168,5 +168,7 @@ for eps in range(td3_trainer.max_episodes):
     "critic_2_loss": float(np.mean(critic2_losses)) if critic2_losses else None,
     "agent_loss": float(np.mean(actor_losses)) if actor_losses else None,
     }, step=total_it)
+
+    run.log({"event/episodes": eps}, step=total_it)
 
 td3_trainer.save_checkpoint(step=str(total_it), name="last")
