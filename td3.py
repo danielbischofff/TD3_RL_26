@@ -221,6 +221,10 @@ class TD3_agent():
         ckpt = torch.load(self.ckpt_path, map_location=self.device, weights_only=False)
         self.actor.load_state_dict(ckpt["actor"])
 
+    def re_init_actor(self, ckpt):
+        ckpt = torch.load(ckpt, map_location=self.device, weights_only=False)
+        self.actor.load_state_dict(ckpt["actor"])
+
 
 
 class Actor(nn.Module):
@@ -274,6 +278,56 @@ class ReplayBuffer:
 
     def sample(self, batch_size):
         idx = np.random.randint(0, self.size, size=batch_size)
+        return (
+            self.states[idx],
+            self.actions[idx],
+            self.rewards[idx],
+            self.next_states[idx],
+            self.dones[idx],
+        )
+
+class ReplayPriorityBuffer:
+    def __init__(self, state_dim, action_dim, alpha, beta_start, beta_frames, eps ,max_size=int(1e6)):
+        self.max_size = max_size
+        self.ptr = 0
+        self.size = 0
+
+        self.states = np.zeros((max_size, state_dim), dtype=np.float32)
+        self.actions = np.zeros((max_size, action_dim), dtype=np.float32)
+        self.next_states = np.zeros((max_size, state_dim), dtype=np.float32)
+        self.rewards = np.zeros((max_size, 1), dtype=np.float32)
+        self.dones = np.zeros((max_size, 1), dtype=bool)
+
+        # PER
+        self.alpha = alpha
+        self.beta_start = beta_start
+        self.beta_frames = beta_frames
+        self.eps = eps
+        self.frame = 1
+
+        self.priorities = np.zeros((max_size,), dtype=np.float32)
+        self.max_priority = 1.0
+
+    def add(self, state, action, reward, next_state, done):
+        self.states[self.ptr] = state
+        self.actions[self.ptr] = action
+        self.next_states[self.ptr] = next_state
+        self.rewards[self.ptr] = reward
+        self.dones[self.ptr] = done
+
+        self.priorities[self.ptr] = self.max_priority
+
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
+
+
+    def sample(self, batch_size):
+
+        prios = self.priorities[:self.size] + self.eps
+        probs = prios ** self.alpha
+        probs /= probs.sum()
+
+        idx = np.random.randint(0, self.size, size=batch_size, p=probs)
         return (
             self.states[idx],
             self.actions[idx],
