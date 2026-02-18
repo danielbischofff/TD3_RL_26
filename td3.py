@@ -72,7 +72,7 @@ class TD3_trainer():
             action = action + noise
 
         # clip to env bounds
-        action = np.clip(action, self.action_bounds[0], self.action_bounds[1]) # FIXME maybe we need this
+        action = np.clip(action, self.action_bounds[0], self.action_bounds[1])
 
         return action.astype(np.float32)
     
@@ -170,7 +170,7 @@ class TD3_trainer():
     def resume_from_check(self, path):
     
         ckpt = torch.load(path, map_location=self.device, weights_only = False)
-        self.config = ckpt["config"]
+        # self.config = ckpt["config"]
 
         self.actor.load_state_dict(ckpt["actor"])
         self.critic_1.load_state_dict(ckpt["critic_1"])
