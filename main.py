@@ -62,8 +62,8 @@ run = wandb.init(
     name="td3_run_mixo_006_4",  # -
     project="RL_TD3_hockey",
     config=td3_trainer.config,
-    tags = [f"{opponent}_opp", f"resume: {True if resume else False}", f"resume_buffer: {resume_buffer}"], 
-) 
+    tags = [f"{opponent}_opp"] + ([ "resume" ] if resume else []) + ([ "resume_buffer" ] if resume_buffer else [])
+, ) 
 
 # ----------
 # Train run
