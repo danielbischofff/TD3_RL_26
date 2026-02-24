@@ -21,10 +21,17 @@ act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
 
 # --- model init ---
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_03.pt" # -
+resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_04.pt" # -
 resume_buffer = True # -
+priority_buffer = True # -
 
-td3_trainer = TD3_trainer(obs_dim, act_dim, act_bounds, resume, resume_buffer)
+td3_trainer = TD3_trainer(obs_dim=obs_dim, 
+                          act_dim=act_dim, 
+                          act_bounds=act_bounds,
+                          priority_buffer=priority_buffer, 
+                          resume_ckpt=resume, 
+                          resume_buffer=resume_buffer)
+
 batch_size = td3_trainer.config["batch_size"]
 policy_delay = td3_trainer.config["policy_delay"]
 device = td3_trainer.device
@@ -33,7 +40,7 @@ max_timesteps = 600
 
 # --- opponent init ---
 opponent = "mixed" # -
-td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_03.pt" # -
+td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_04.pt" # -
 
 if opponent == "strong":
     player2 = h_env.BasicOpponent(weak=False)
@@ -121,8 +128,14 @@ for eps in range(td3_trainer.max_episodes):
 
         # ---- LEARNING PHASE ----
         if total_it >= td3_trainer.config["warm_up"] and td3_trainer.buffer.size >= batch_size:
-
-            states, actions, rewards, next_states, dones_b = td3_trainer.buffer.sample(batch_size)
+            
+            batch = td3_trainer.buffer.sample(batch_size)
+            if priority_buffer:
+                states, actions, rewards, next_states, dones_b, idx, weights = batch
+                w_b = torch.as_tensor(weights, dtype=torch.float32, device=device)  # (B,1)
+            else:
+                states, actions, rewards, next_states, dones_b = batch
+                idx, w_b = None, None
 
             state_b = torch.FloatTensor(states).to(device)
             action_b = torch.FloatTensor(actions).to(device)
@@ -145,6 +158,9 @@ for eps in range(td3_trainer.max_episodes):
 
             critic1_losses.append(critic_loss["critic_1_loss"])
             critic2_losses.append(critic_loss["critic_2_loss"])
+
+            if priority_buffer:
+                td3_trainer.buffer.update_priorities(idx, critic_loss["td_err"])
 
             # ---- ACTOR UPDATE ----
             if total_it % policy_delay == 0:
