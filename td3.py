@@ -5,7 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 
 class TD3_trainer():
-    def __init__(self, obs_dim, act_dim, act_bounds, resume_ckpt = None, resume_buffer=False):
+    def __init__(self, obs_dim, act_dim, act_bounds, priority_buffer = False ,resume_ckpt = None, resume_buffer=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_dim = act_dim
         self.observation_space_dim = obs_dim
@@ -29,7 +29,11 @@ class TD3_trainer():
         self.start_timestep = 0
         self.max_episodes = self.config["max_episodes"]
         self.action_bounds = act_bounds
-        self.buffer = ReplayBuffer(state_dim=self.observation_space_dim, action_dim=self.action_dim)
+        if priority_buffer:
+            self.buffer = ReplayPriorityBuffer(state_dim=self.observation_space_dim, action_dim=self.action_dim)
+        else:
+            self.buffer = ReplayBuffer(state_dim=self.observation_space_dim, action_dim=self.action_dim)
+            
         self.initiate_models()
 
     def initiate_models(self):
@@ -76,7 +80,7 @@ class TD3_trainer():
 
         return action.astype(np.float32)
     
-    def critic_update(self, state, action, reward, next_state, done):
+    def critic_update(self, state, action, reward, next_state, done, weights=None, idx=None):
         
         # ---- Compute targets (no gradients) ----
         with torch.no_grad():
@@ -100,9 +104,16 @@ class TD3_trainer():
         current_Q2 = self.critic_2(state, action)
 
         # ---- Critic loss ----
-        loss = torch.nn.SmoothL1Loss()
+        loss = torch.nn.SmoothL1Loss(reduction="none")
         critic_1_loss = loss(current_Q1, target_Q)
         critic_2_loss = loss(current_Q2, target_Q)
+
+        if weights is not None:
+            critic_1_loss = (critic_1_loss * weights).mean()
+            critic_2_loss = (critic_2_loss * weights).mean()
+        else:
+            critic_1_loss = critic_1_loss.mean()
+            critic_2_loss = critic_2_loss.mean()
         
 
         self.critic_optimizer_1.zero_grad()
@@ -112,9 +123,15 @@ class TD3_trainer():
         self.critic_optimizer_1.step()
         self.critic_optimizer_2.step()
 
+        with torch.no_grad():
+            td_err1 = (target_Q - current_Q1).abs()
+            td_err2 = (target_Q - current_Q2).abs()
+            td_err = torch.max(td_err1, td_err2).squeeze(1)  # (B,)
+
         return {
             "critic_1_loss": critic_1_loss.item(),
             "critic_2_loss": critic_2_loss.item(),
+            "td_err": td_err.detach().cpu().numpy()
         }
 
     def actor_target_update(self, state_batch):
@@ -287,7 +304,7 @@ class ReplayBuffer:
         )
 
 class ReplayPriorityBuffer:
-    def __init__(self, state_dim, action_dim, alpha, beta_start, beta_frames, eps ,max_size=int(1e6)):
+    def __init__(self, state_dim, action_dim, alpha=0.6, beta_start=0.4, beta_frames=1_000_000, eps=1e-6, max_size=int(1e6)):
         self.max_size = max_size
         self.ptr = 0
         self.size = 0
@@ -321,17 +338,38 @@ class ReplayPriorityBuffer:
         self.size = min(self.size + 1, self.max_size)
 
 
+    def _beta(self):
+        t = min(1.0, self.frame / self.beta_frames)
+        return self.beta_start + t * (1.0 - self.beta_start)
+
     def sample(self, batch_size):
 
         prios = self.priorities[:self.size] + self.eps
         probs = prios ** self.alpha
         probs /= probs.sum()
 
-        idx = np.random.randint(0, self.size, size=batch_size, p=probs)
+        idxs = np.random.choice(self.size, size=batch_size, p=probs)
+        beta = self._beta()
+        self.frame += 1
+
+        # importance sampling weights
+        weights = (self.size * probs[idxs]) ** (-beta)
+        weights /= weights.max()
+        weights = weights.astype(np.float32).reshape(-1, 1)
+
         return (
-            self.states[idx],
-            self.actions[idx],
-            self.rewards[idx],
-            self.next_states[idx],
-            self.dones[idx],
+            self.states[idxs],
+            self.actions[idxs],
+            self.rewards[idxs],
+            self.next_states[idxs],
+            self.dones[idxs],
+            idxs,
+            weights,
         )
+    
+
+    def update_priorities(self, idx, priorities):
+        priorities = np.asarray(priorities, dtype=np.float32).reshape(-1)
+        priorities = np.maximum(priorities, self.eps)
+        self.priorities[idx] = priorities
+        self.max_priority = max(self.max_priority, float(priorities.max()))
