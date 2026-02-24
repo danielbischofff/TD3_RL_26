@@ -92,7 +92,7 @@ def initialize_agent(agent_args: list[str]) -> Agent:
         "--agent",
         type=str,
         choices=["weak", "strong", "random", "td3"],
-        default="weak",
+        default="td3",
         help="Which agent to use.",
     )
     args = parser.parse_args(agent_args)

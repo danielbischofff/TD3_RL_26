@@ -6,6 +6,7 @@ import hockey.hockey_env as h_env
 import numpy as np
 import wandb
 from hockey_agent import RandomAgent, MixedAgent
+from diff_agents import SACAgent
 
 
 # ---------------
@@ -21,8 +22,8 @@ act_dim = env.num_actions
 act_bounds = (env.action_space.low[0], env.action_space.high[0])
 
 # --- model init ---
-resume = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_04.pt" # -
-resume_buffer = True # -
+resume = "checkpoints/td3_ckp_nat_37_01.pt" # -
+resume_buffer = False # -
 priority_buffer = True # -
 
 td3_trainer = TD3_trainer(obs_dim=obs_dim, 
@@ -40,12 +41,16 @@ max_timesteps = 600
 
 # --- opponent init ---
 opponent = "mixed" # -
-td3_v1_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_04.pt" # -
+td3_v1_path = "checkpoints/td3_ckp_nat_37_01.pt" # -
+tdr3_anne = "checkpoints/td3_anne.pt" # -
+sac_nat = "checkpoints/SAC_nat_37.pth" # -
 
 if opponent == "strong":
     player2 = h_env.BasicOpponent(weak=False)
 elif opponent == "td3":
-    player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path=td3_v1_path)
+    player2 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path=tdr3_anne)
+elif opponent == "sac":
+    player2 = SACAgent(obs_dim=obs_dim, act_dim=act_dim, ckpt_path=sac_nat, act_bounds=act_bounds)
 elif opponent == "mixed":
     player2 = h_env.BasicOpponent(weak=True)
     opponents = {
@@ -54,8 +59,8 @@ elif opponent == "mixed":
         "random": RandomAgent(act_dim, act_bounds),
         "td3_v1": TD3_agent(obs_dim, act_dim, act_bounds, td3_v1_path),
     }
-    OPP_ID = {"weak": 0, "strong": 1, "random": 2, "td3_v1": 3}
-    probs = {"weak": 0.10, "strong": 0.30, "random": 0.10, "td3_v1": 0.50}
+    OPP_ID = {"weak": 0, "strong": 1, "td3_v1": 3}
+    probs = {"weak": 0.10, "strong": 0.40,  "td3_v1": 0.50}
     player2 = MixedAgent(opponents, probs, seed=0)
 else:
     player2 = h_env.BasicOpponent(weak=False)
@@ -66,11 +71,11 @@ else:
 # --- logging init ---
 run = wandb.init(
     entity="bischoffd",
-    name="td3_run_mixo_006_4",  # -
+    name="td3_run_mixed_prio_008",  # -
     project="RL_TD3_hockey",
     config=td3_trainer.config,
 
-    tags = [f"{opponent}_opp"] + ([ "resume" ] if resume else []) + ([ "resume_buffer" ] if resume_buffer else [])
+    tags = [f"{opponent}_opp"] + ([ "resume" ] if resume else []) + ([ "resume_buffer" ] if resume_buffer else [] ) + ([ "priority_buffer" ] if priority_buffer else [] )
 , ) 
 
 # ----------
@@ -114,7 +119,7 @@ for eps in range(td3_trainer.max_episodes):
         a2 = player2.act(obs2)
 
         # --- Env step ---
-        obs1_new, r, terminated, truncated, info = env.step(np.hstack([a1, a2]))
+        obs1_new, r, terminated, truncated, info = env.step(np.hstack([a1, a2[:4]]))
         # r = + info["reward_puck_direction"]+ info["reward_touch_puck"] 
 
         episode_return += r
