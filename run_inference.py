@@ -71,7 +71,7 @@ class HockeyAgent_TD3(Agent):
         obs_dim = env.observation_space.shape[0]
         act_dim = env.num_actions
         act_bounds = (env.action_space.low[0], env.action_space.high[0])
-        self.td3 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
+        self.td3 = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path=ckpt_path)
 
     def get_step(self, observation: list[float]) -> list[float]:
         return self.td3.act(observation).tolist()
@@ -131,6 +131,8 @@ def run_local_games(
             while True:
                 a1 = np.asarray(agent.get_step(obs1.tolist()), dtype=np.float32)
 
+                # a1 = np.concatenate([a1, [0.9,0,0,0]])
+
                 if opponnent == "self":
                     a2 = np.asarray(player2.act(obs2), dtype=np.float32)
                     action = np.hstack([a1, a2])  # (8,)
@@ -171,16 +173,16 @@ def run_local_games(
 
 
 if __name__ == "__main__":
-    ckpt = "checkpoints/td3_ckp_04_so.pt"
+    ckpt = "/Users/danielbischoff/Documents/MasterInformatik/RL/FinalProject/checkpoints/td3_ckp_04_so.pt"
     agent = HockeyAgent_TD3(ckpt_path=ckpt)
 
     run_local_games(
         agent=agent,
-        n_games=10,
-        video_path="./results/hockey_td3_vs_td3_all.mp4",
+        n_games=100,
+        video_path="./results/td3_ckp_04vsso.mp4",
         fps=50,
         score_factor=0.25,
         seed=0,
-        opponnent="self",
+        opponnent="strong",
         self_ckpt=ckpt,  # opponent ckpt (can be different!)
     )
