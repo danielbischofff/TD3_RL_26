@@ -35,13 +35,6 @@ class HockeyAgent(Agent):
         self.hockey_agent = h_env.BasicOpponent(weak=weak)
 
     def get_step(self, observation: list[float]) -> list[float]:
-        # NOTE: If your agent is using discrete actions (0-7), you can use
-        # HockeyEnv.discrete_to_continous_action to convert the action:
-        #
-        # from hockey.hockey_env import HockeyEnv
-        # env = HockeyEnv()
-        # continuous_action = env.discrete_to_continous_action(discrete_action)
-
         action = self.hockey_agent.act(observation).tolist()
         return action
 
@@ -64,11 +57,12 @@ class HockeyAgent_TD3(Agent):
         obs_dim = env.observation_space.shape[0]
         act_dim = env.num_actions
         act_bounds = (env.action_space.low[0], env.action_space.high[0])
-        self.hockey_agent = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path="checkpoints/td3_ckp_04_so.pt")
+        self.hockey_agent = TD3_agent(obs_dim=obs_dim, act_dim=act_dim,act_bounds=act_bounds, ckpt_path=ckpt_path)
 
     def get_step(self, observation: list[float]) -> list[float]:
 
         action = self.hockey_agent.act(observation).tolist()
+        # action = np.concatenate([action, [0.9,0,0,0]])
         return action
 
     def on_start_game(self, game_id) -> None:
@@ -102,7 +96,7 @@ def initialize_agent(agent_args: list[str]) -> Agent:
     if args.agent == "weak":
         agent = HockeyAgent(weak=True)
     elif args.agent == "td3":
-        agent = HockeyAgent_TD3(ckpt_path = "/Users/danielbischoff/Documents/MasterInformatik/RL/FinalProject/checkpoints")
+        agent = HockeyAgent_TD3(ckpt_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_06_prio.pt")
     elif args.agent == "strong":
         agent = HockeyAgent(weak=False)
     elif args.agent == "random":
