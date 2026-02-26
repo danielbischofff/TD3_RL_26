@@ -60,7 +60,7 @@ class TD3_trainer():
     def select_random_action(self):
         return np.random.uniform(self.action_bounds[0],self.action_bounds[1], self.action_dim).tolist()
 
-    def select_action_with_policy(self, state,  add_noise=True):
+    def select_action_with_policy(self, state, add_noise=True):
 
         # check if state is numpy and transform to tensor
         if not isinstance(state, np.ndarray):

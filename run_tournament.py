@@ -85,7 +85,7 @@ def initialize_agent(agent_args: list[str]) -> Agent:
     parser.add_argument(
         "--agent",
         type=str,
-        choices=["weak", "strong", "random", "td3"],
+        choices=["mixed04", "so04"],
         default="td3",
         help="Which agent to use.",
     )
@@ -93,14 +93,10 @@ def initialize_agent(agent_args: list[str]) -> Agent:
 
     # Initialize the agent based on the arguments.
     agent: Agent
-    if args.agent == "weak":
-        agent = HockeyAgent(weak=True)
-    elif args.agent == "td3":
-        agent = HockeyAgent_TD3(ckpt_path = "/home/stud359/TD3_RL_26/checkpoints/td3_ckp_mixed_06_prio.pt")
-    elif args.agent == "strong":
-        agent = HockeyAgent(weak=False)
-    elif args.agent == "random":
-        agent = RandomAgent()
+    if args.agent == "so04":
+        agent = HockeyAgent_TD3(ckpt_path = "/Users/danielbischoff/Documents/MasterInformatik/RL/FinalProject/checkpoints/td3_ckp_04_so.pt")
+    elif args.agent == "mixed04":
+        agent = HockeyAgent_TD3(ckpt_path = "/Users/danielbischoff/Documents/MasterInformatik/RL/FinalProject/checkpoints/td3_ckp_mixed_04.pt")
     else:
         raise ValueError(f"Unknown agent: {args.agent}")
 
